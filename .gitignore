@@ -1,0 +1,7 @@
+.DS_Store
+*.env
+/tmp/
+__pycache__/
+*.pyc
+.claude/settings.local.json
+*.jsonl
