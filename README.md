@@ -1,5 +1,7 @@
 # Aster Trade Skills
 
+**[中文版](README_CN.md)**
+
 A collection of automation tools for the Aster Futures API, comprising three independent Skills: Trade Execution, Market Data, and Volume Anomaly Monitor.
 
 All Skills follow the [AgentSkills](https://agentskills.io) format and are compatible with [Claude Code](https://claude.ai/claude-code), [OpenClaw](https://github.com/openclaw/openclaw), and other AI Agent platforms.
