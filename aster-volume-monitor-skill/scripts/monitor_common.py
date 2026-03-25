@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Shared utilities for Aster volume monitor: API client + Telegram push."""
+"""Shared utilities for Aster volume monitor: API client + output helpers."""
 
 import json
-import os
-import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -24,32 +22,6 @@ class AsterMarketClient:
         resp = self.session.get(url, params=params, timeout=20)
         resp.raise_for_status()
         return resp.json()
-
-
-class TelegramNotifier:
-    """Send messages via Telegram Bot API."""
-
-    def __init__(self, bot_token: str, chat_id: str):
-        self.bot_token = bot_token
-        self.chat_id = chat_id
-        self.api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-
-    def send(self, text: str, parse_mode: str = "HTML") -> Dict[str, Any]:
-        resp = requests.post(
-            self.api_url,
-            json={"chat_id": self.chat_id, "text": text, "parse_mode": parse_mode},
-            timeout=15,
-        )
-        return resp.json()
-
-
-def get_tg_notifier() -> Optional[TelegramNotifier]:
-    """Build notifier from env vars; return None if not configured."""
-    token = os.getenv("TG_BOT_TOKEN", "").strip()
-    chat_id = os.getenv("TG_CHAT_ID", "").strip()
-    if token and chat_id:
-        return TelegramNotifier(token, chat_id)
-    return None
 
 
 def ms_to_iso(ms: int) -> str:

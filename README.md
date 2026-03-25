@@ -99,7 +99,7 @@ See [aster-market-data-skill/SKILL.md](aster-market-data-skill/SKILL.md) for ful
 
 ## 3. aster-volume-monitor-skill — Volume Anomaly Monitor
 
-Detects abnormal volume spikes on Aster Futures with optional Telegram alerts.
+Detects abnormal volume spikes on Aster Futures. Outputs JSON for OpenClaw or other Agent platforms to consume and forward.
 
 **How it works:**
 1. Fetches the last N klines for a symbol
@@ -123,28 +123,14 @@ Detects abnormal volume spikes on Aster Futures with optional Telegram alerts.
 cd aster-volume-monitor-skill
 python3 -m pip install --user -r requirements.txt
 
-# Single check
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+# Monitor all symbols
+python3 scripts/detect_volume_anomaly.py
 
-# With Telegram push
-TG_BOT_TOKEN=xxx TG_CHAT_ID=yyy \
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+# Exclude specific symbols
+python3 scripts/detect_volume_anomaly.py --exclude USDCUSDT,TUSDUSDT
 
-# Cron every 15 minutes
-*/15 * * * * cd /path/to/skill && python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
-```
-
-**Telegram alert example:**
-```
-⚠️ BTCUSDT Volume Anomaly
-
-Time: 2026-03-24 10:15 UTC
-Interval: 15m
-Volume: 234.56 BTC
-Prev Period: 45.67 BTC
-Ratio: 5.13x (threshold: 2.0x)
-Quote Volume: $16,654,321.00
-Trades: 3,456
+# Monitor specific symbols only
+python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT,ETHUSDT,SOLUSDT
 ```
 
 See [aster-volume-monitor-skill/SKILL.md](aster-volume-monitor-skill/SKILL.md) for full details.
@@ -168,21 +154,10 @@ cp -r aster-market-data-skill <workspace>/skills/aster-market-data
 Volume monitor cron config (`openclaw.json`):
 ```json
 {
-  "skills": {
-    "entries": {
-      "aster-volume-monitor": {
-        "env": {
-          "TG_BOT_TOKEN": "your-bot-token",
-          "TG_CHAT_ID": "your-chat-id"
-        }
-      }
-    }
-  },
   "cron": [
     {
       "schedule": "*/15 * * * *",
-      "message": "Run BTCUSDT volume anomaly detection",
-      "channel": "telegram"
+      "message": "Run volume anomaly detection: python3 {baseDir}/scripts/detect_volume_anomaly.py --exclude USDCUSDT"
     }
   ]
 }

@@ -99,7 +99,7 @@ python3 scripts/get_funding_rate.py --symbol BTCUSDT --limit 5
 
 ## 3. aster-volume-monitor-skill — 交易量异常监控
 
-检测 Aster Futures 单币种的交易量异常放量，支持 Telegram 推送。
+检测 Aster Futures 交易量异常放量，输出 JSON 供 OpenClaw 等 Agent 平台消费和转发。
 
 **检测原理：**
 1. 拉取最近 N 根 K 线
@@ -123,28 +123,14 @@ python3 scripts/get_funding_rate.py --symbol BTCUSDT --limit 5
 cd aster-volume-monitor-skill
 python3 -m pip install --user -r requirements.txt
 
-# 单次检测
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+# 监控所有 symbol
+python3 scripts/detect_volume_anomaly.py
 
-# 带 TG 推送
-TG_BOT_TOKEN=xxx TG_CHAT_ID=yyy \
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+# 排除指定 symbol
+python3 scripts/detect_volume_anomaly.py --exclude USDCUSDT,TUSDUSDT
 
-# Cron 每15分钟监控
-*/15 * * * * cd /path/to/skill && python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
-```
-
-**Telegram 推送消息示例：**
-```
-⚠️ BTCUSDT 交易量异常
-
-时间: 2026-03-24 10:15 UTC
-周期: 15m
-币本位交易量: 234.56
-上一周期: 45.67
-环比: 5.13x (阈值: 2.0x)
-USDT交易量: $16,654,321.00
-成交笔数: 3,456
+# 只监控指定 symbol
+python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT,ETHUSDT,SOLUSDT
 ```
 
 详见 [aster-volume-monitor-skill/SKILL.md](aster-volume-monitor-skill/SKILL.md)
@@ -168,21 +154,10 @@ cp -r aster-market-data-skill <workspace>/skills/aster-market-data
 交易量监控 cron 配置（`openclaw.json`）：
 ```json
 {
-  "skills": {
-    "entries": {
-      "aster-volume-monitor": {
-        "env": {
-          "TG_BOT_TOKEN": "your-bot-token",
-          "TG_CHAT_ID": "your-chat-id"
-        }
-      }
-    }
-  },
   "cron": [
     {
       "schedule": "*/15 * * * *",
-      "message": "运行 BTCUSDT 交易量异常检测",
-      "channel": "telegram"
+      "message": "运行交易量异常检测：python3 {baseDir}/scripts/detect_volume_anomaly.py --exclude USDCUSDT"
     }
   ]
 }

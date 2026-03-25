@@ -2,8 +2,9 @@
 """
 Aster Futures 交易量异常检测脚本
 
-从 K 线数据中检测环比交易量异常，可选推送到 Telegram。
+从 K 线数据中检测环比交易量异常。
 支持全量 symbol 监控、指定多个 symbol、排除指定 symbol。
+输出 JSON 供 OpenClaw 等 Agent 平台消费和转发。
 
 K 线字段映射:
   [0]  Open time (ms)
@@ -28,7 +29,6 @@ from decimal import Decimal
 from monitor_common import (
     AsterMarketClient,
     format_number,
-    get_tg_notifier,
     ms_to_iso,
     output_error,
     output_json,
@@ -53,9 +53,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lookback", type=int, default=10, help="回看K线数量，越大覆盖时间越长（默认 10）")
     p.add_argument("--ratio-threshold", type=float, default=2.0, help="环比异常倍数阈值，如 2.0 表示当前周期 >= 前一周期的 2 倍即为异常（默认 2.0）")
     p.add_argument("--min-notional", type=float, default=100000, help="最低 USDT 交易量门槛，低于此值的周期跳过检测（默认 100000）")
-    p.add_argument("--output-file", help="可选：追加异常记录到本地文件（JSON Lines 格式）")
-    p.add_argument("--silent", action="store_true", default=True, help="无异常时不推送 TG（默认开启）")
-    p.add_argument("--no-silent", action="store_false", dest="silent", help="无异常时也推送 TG 汇总")
+    p.add_argument("--output-file", help="追加异常记录到本地文件（JSON Lines 格式）")
     p.add_argument("--delay", type=float, default=0.1, help="每个 symbol 请求间隔秒数，避免触发限频（默认 0.1）")
     p.add_argument("--base-url", default="https://fapi.asterdex.com")
     return p.parse_args()
@@ -127,23 +125,6 @@ def check_symbol(client: AsterMarketClient, symbol: str, interval: str, lookback
     return {"symbol": symbol, "anomalies": anomalies}
 
 
-def build_tg_message(interval: str, all_anomalies: list[dict]) -> str:
-    """构造 Telegram 推送消息（HTML 格式），按 symbol 分组。"""
-    lines = [f"⚠️ <b>交易量异常警报</b> ({len(all_anomalies)} 条)\n"]
-    for a in all_anomalies:
-        lines.append(
-            f"<b>{a['symbol']}</b>\n"
-            f"  时间: {a['open_time']}\n"
-            f"  周期: {interval}\n"
-            f"  币本位交易量: {a['volume']}\n"
-            f"  上一周期: {a['prev_volume']}\n"
-            f"  环比: {a['ratio']:.2f}x (阈值: {a['ratio_threshold']:.1f}x)\n"
-            f"  USDT交易量: ${format_number(float(a['quote_volume']))}\n"
-            f"  成交笔数: {a['trades']:,}\n"
-        )
-    return "\n".join(lines)
-
-
 def main() -> int:
     try:
         args = parse_args()
@@ -190,21 +171,6 @@ def main() -> int:
                 for a in all_anomalies:
                     record = {"interval": args.interval, **a}
                     f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-        # Telegram 推送
-        tg = get_tg_notifier()
-        if tg and all_anomalies:
-            msg = build_tg_message(args.interval, all_anomalies)
-            # TG 消息限制 4096 字符，超长时截断
-            if len(msg) > 4000:
-                msg = msg[:3950] + "\n\n... (truncated)"
-            tg_result = tg.send(msg)
-            result["tg_push"] = {"sent": True, "ok": tg_result.get("ok", False)}
-        elif tg and not all_anomalies and not args.silent:
-            tg.send(f"✅ 最近 {args.lookback} 个 {args.interval} 周期，{len(symbols)} 个 symbol 无交易量异常。")
-            result["tg_push"] = {"sent": True, "reason": "no_anomaly_report"}
-        else:
-            result["tg_push"] = {"sent": False, "reason": "no_tg_config" if not tg else "no_anomaly_silent"}
 
         return output_json(result)
     except Exception as exc:
