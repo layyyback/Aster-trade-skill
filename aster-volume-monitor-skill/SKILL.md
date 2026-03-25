@@ -42,12 +42,14 @@ homepage: "https://www.asterdex.com"
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `--symbol` | 监控的交易对，如 BTCUSDT | 必填 |
+| `--symbol` | 监控的交易对，逗号分隔多个。不传则监控所有 TRADING 状态的 symbol | 全部 |
+| `--exclude` | 排除的交易对，逗号分隔。仅在未指定 --symbol 时生效 | 无 |
 | `--interval` | K线周期，如 15m / 1h / 4h | `15m` |
 | `--lookback` | 回看K线数量，越大覆盖时间越长 | `10` |
 | `--ratio-threshold` | 环比异常倍数阈值。2.0 = 当前周期交易量 >= 上一周期 2 倍即异常 | `2.0` |
 | `--min-notional` | 最低 USDT 交易量门槛。低于此值的周期跳过，避免低量噪音误报 | `100000` |
 | `--output-file` | 可选，追加异常记录到本地文件（JSON Lines 格式），方便跨次运行追踪 | 无 |
+| `--delay` | 每个 symbol 请求间隔秒数，避免触发限频 | `0.1` |
 | `--silent` | 无异常时不推送 TG（默认开启） | 开启 |
 | `--no-silent` | 无异常时也推送 TG 汇总 | — |
 | `--base-url` | API 地址 | `https://fapi.asterdex.com` |
@@ -56,21 +58,22 @@ homepage: "https://www.asterdex.com"
 
 | 字段 | 说明 |
 |------|------|
-| `symbol` | 交易对 |
 | `interval` | K线周期 |
 | `ratio_threshold` | 设定的环比异常阈值 |
 | `min_notional` | 设定的最低 USDT 交易量门槛 |
 | `lookback` | 回看K线数量 |
-| `periods` | 每根K线的详情数组 |
-| `periods[].open_time` | 该K线开盘时间（UTC） |
-| `periods[].volume` | 该周期币本位交易量（用于环比计算） |
-| `periods[].quote_volume` | 该周期 USDT 交易量（用于门槛过滤） |
-| `periods[].trades` | 该周期成交笔数 |
-| `periods[].prev_volume` | 上一周期币本位交易量 |
-| `periods[].ratio` | 环比倍数 = volume / prev_volume |
-| `periods[].skipped` | 是否因低于 min_notional 被跳过 |
-| `periods[].anomaly` | 是否触发异常（ratio >= 阈值且未被跳过） |
-| `anomalies_found` | 本次检测发现的异常周期总数 |
+| `symbols_checked` | 本次检测的 symbol 总数 |
+| `anomalies_found` | 发现的异常总条数 |
+| `anomaly_symbols` | 有异常的 symbol 列表及各自异常条数 |
+| `anomalies` | 所有异常详情数组 |
+| `anomalies[].symbol` | 交易对 |
+| `anomalies[].open_time` | 该K线开盘时间（UTC） |
+| `anomalies[].volume` | 该周期币本位交易量（用于环比计算） |
+| `anomalies[].quote_volume` | 该周期 USDT 交易量（用于门槛过滤） |
+| `anomalies[].trades` | 该周期成交笔数 |
+| `anomalies[].prev_volume` | 上一周期币本位交易量 |
+| `anomalies[].ratio` | 环比倍数 = volume / prev_volume |
+| `errors` | 请求失败的 symbol 及错误信息（如有） |
 | `tg_push.sent` | 是否发送了 TG 消息 |
 | `tg_push.ok` | TG API 返回是否成功 |
 | `tg_push.reason` | 未发送的原因（no_tg_config / no_anomaly_silent） |
@@ -93,14 +96,26 @@ homepage: "https://www.asterdex.com"
 python3 -m pip install --user -r requirements.txt
 ```
 
-### 单次检测
+### 监控所有 symbol（默认）
 
-默认参数（15分钟周期，2倍阈值，10万U门槛）：
 ```bash
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+python3 scripts/detect_volume_anomaly.py
 ```
 
-自定义参数：
+### 排除指定 symbol
+
+```bash
+python3 scripts/detect_volume_anomaly.py --exclude USDCUSDT,TUSDUSDT
+```
+
+### 只监控指定 symbol
+
+```bash
+python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT,ETHUSDT,SOLUSDT
+```
+
+### 自定义参数
+
 ```bash
 python3 scripts/detect_volume_anomaly.py \
   --symbol ETHUSDT \
@@ -110,24 +125,25 @@ python3 scripts/detect_volume_anomaly.py \
   --min-notional 500000
 ```
 
-带 TG 推送：
+### 带 TG 推送
+
 ```bash
 TG_BOT_TOKEN=123456:ABC-DEF \
 TG_CHAT_ID=987654321 \
-python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT
+python3 scripts/detect_volume_anomaly.py
 ```
 
-追加记录到文件：
+### 追加记录到文件
+
 ```bash
 python3 scripts/detect_volume_anomaly.py \
-  --symbol BTCUSDT \
-  --output-file /tmp/btc_volume_anomalies.jsonl
+  --output-file /tmp/volume_anomalies.jsonl
 ```
 
 ### Cron 持续监控（每15分钟）
 
 ```bash
-*/15 * * * * cd /path/to/aster-volume-monitor-skill && TG_BOT_TOKEN=xxx TG_CHAT_ID=yyy python3 scripts/detect_volume_anomaly.py --symbol BTCUSDT >> /var/log/volume-monitor.log 2>&1
+*/15 * * * * cd /path/to/aster-volume-monitor-skill && TG_BOT_TOKEN=xxx TG_CHAT_ID=yyy python3 scripts/detect_volume_anomaly.py >> /var/log/volume-monitor.log 2>&1
 ```
 
 ## OpenClaw 安装
